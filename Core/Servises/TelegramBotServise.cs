@@ -6,7 +6,6 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Common.Exceptions;
 using VM.GeocodingApiVM;
-using System.Text;
 
 namespace Core.Servises
 {
@@ -26,8 +25,9 @@ namespace Core.Servises
         public async Task HandelMassage(Update update, CancellationToken cancellationToken = default)
         {
             Contract.NotNull(update, nameof(update));
-            if (update.Type == UpdateType.EditedMessage)
+            if (update.Type == UpdateType.EditedMessage || update.Message is null)
                 return;
+
             if (update.Message.Type != MessageType.Text)
             {
                 await _telegramClient.SendTextMessageAsync(update.Message.Chat.Id, "Я можу обробляти лише текстові запити", cancellationToken: cancellationToken);
@@ -45,8 +45,8 @@ namespace Core.Servises
                 "/dh - Дізнайся як змінюватиметься погода щогодинно.\n" +
                 "Або просто введи назву локації, де Вам, цікаво знати погоду, щоб дізнатися її на сьогодні." +
                 "\n Наприклад:\n" +
-                "Київ Або: Kiev\n" +
-                "d1 Київ\nd7 Kiev\ndh Kiev", cancellationToken: cancellationToken);
+                "Київ Або: Kyiv\n" +
+                "/d1 Київ.\n/d7 Kyiv.\n/dh Kyiv.", cancellationToken: cancellationToken);
                 return;
             }
 
@@ -85,11 +85,13 @@ namespace Core.Servises
                 switch (message[0])
                 {
                     case "/d1":
+                        string windDirection = _watherAPIService.ConvertDegreesToWindDirection(weather.daily.winddirection_10m_dominant[1]);
+
                         await _telegramClient.SendTextMessageAsync(update.Message.Chat.Id,
                             $"Погода в {geodata[0].Name}, {geodata[0].Country}, {geodata[0].State} станом на {weather.daily.time[1]}.\n" +
                             $"Максимальна температура: {weather?.daily?.temperature_2m_max[1]} {weather?.daily_units?.temperature_2m_min}\n" +
                             $"Мінімальна температура: {weather?.daily?.temperature_2m_min[1]} {weather?.daily_units?.temperature_2m_min}\n" +
-                            $"Пориви вітру до {weather?.daily?.windspeed_10m_max[1]} {weather?.daily_units?.windspeed_10m_max}\n" +
+                            $"Пориви вітру до {weather?.daily?.windspeed_10m_max[1]} {weather?.daily_units?.windspeed_10m_max}, напрям вітру: {windDirection}\n" +
                             $"Кількість опадів:\n" +
                             $"Дощ: {weather?.daily?.rain_sum[1]} {weather?.daily_units?.rain_sum}\n" +
                             $"Сніг: {weather?.daily?.snowfall_sum[1]} {weather?.daily_units?.snowfall_sum}");
@@ -100,9 +102,11 @@ namespace Core.Servises
 
                         for (int i = 1; i < 8; i++)
                         {
+                            windDirection = _watherAPIService.ConvertDegreesToWindDirection(weather.daily.winddirection_10m_dominant[i]);
+
                             messageToTgd7 += $"{weather.daily.time[i]}: Максимальна температура: {weather?.daily?.temperature_2m_max[i]} {weather?.daily_units?.temperature_2m_min} " +
                                 $"Мінімальна температура: {weather?.daily?.temperature_2m_min[i]} {weather?.daily_units?.temperature_2m_min} " +
-                                $"Пориви вітру до {weather?.daily?.windspeed_10m_max[i]} {weather?.daily_units?.windspeed_10m_max}\n" +
+                                $"Пориви вітру до {weather?.daily?.windspeed_10m_max[i]} {weather?.daily_units?.windspeed_10m_max}, напрям вітру: {windDirection}\n" +
                                 $"Кількість опадів: " +
                                 $"Дощ: {weather?.daily?.rain_sum[i]} {weather?.daily_units?.rain_sum} " +
                                 $"Сніг: {weather?.daily?.snowfall_sum[i]} {weather?.daily_units?.snowfall_sum}\n";
@@ -117,8 +121,10 @@ namespace Core.Servises
 
                         for (int i = 0; i < 24; i++)
                         {
+                            windDirection = _watherAPIService.ConvertDegreesToWindDirection(weather.hourly.winddirection_10m[i]);
+
                             messageToTgdh += $"{weather.hourly.time[i]}: Tемпература: {weather?.hourly?.temperature_2m[i]} {weather?.hourly_units?.temperature_2m} " +
-                                $"Пориви вітру до {weather?.hourly?.windspeed_10m[i]} {weather?.hourly_units?.windspeed_10m}. " +
+                                $"Пориви вітру до {weather?.hourly?.windspeed_10m[i]} {weather?.hourly_units?.windspeed_10m}, напрям вітру: {windDirection}. " +
                                 $"Кількість опадів: " +
                                 $"Дощ: {weather?.hourly?.rain[i]} {weather?.hourly_units?.rain} " +
                                 $"Сніг: {weather?.hourly?.snowfall[i]} {weather?.hourly_units?.snowfall}\n";
@@ -129,11 +135,13 @@ namespace Core.Servises
                         return;
 
                     default:
+                        windDirection = _watherAPIService.ConvertDegreesToWindDirection(weather.daily.winddirection_10m_dominant.FirstOrDefault());
+
                         await _telegramClient.SendTextMessageAsync(update.Message.Chat.Id,
                             $"Погода в {geodata[0].Name}, {geodata[0].Country}, {geodata[0].State}, станом на {weather.daily.time.FirstOrDefault()}.\n" +
                             $"Максимальна температура: {weather?.daily?.temperature_2m_max?.FirstOrDefault()} {weather?.daily_units?.temperature_2m_min}\n" +
                             $"Мінімальна температура: {weather?.daily?.temperature_2m_min?.FirstOrDefault()} {weather?.daily_units?.temperature_2m_min}\n" +
-                            $"Пориви вітру до {weather?.daily?.windspeed_10m_max?.FirstOrDefault()} {weather?.daily_units?.windspeed_10m_max}\n" +
+                            $"Пориви вітру до {weather?.daily?.windspeed_10m_max?.FirstOrDefault()} {weather?.daily_units?.windspeed_10m_max}, напрям вітру: {windDirection}\n" +
                             $"Кількість опадів:\n" +
                             $"Дощ: {weather?.daily?.rain_sum?.FirstOrDefault()} {weather?.daily_units?.rain_sum}\n" +
                             $"Сніг: {weather?.daily?.snowfall_sum?.FirstOrDefault()} {weather?.daily_units?.snowfall_sum}");
